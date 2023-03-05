@@ -62,8 +62,8 @@ mutable struct Stream
     names::Vector{Symbol}
     types::Vector{Type}
     schema::Union{Nothing,Meta.Schema}
-    dictencodings::Dict{Int64, DictEncoding} # dictionary id => DictEncoding
-    dictencoded::Dict{Int64, Meta.Field} # dictionary id => field
+    dictencodings::Dict{Int64,DictEncoding} # dictionary id => DictEncoding
+    dictencoded::Dict{Int64,Meta.Field} # dictionary id => field
     convert::Bool
     compression::Ref{Union{Symbol,Nothing}}
 end
@@ -74,8 +74,8 @@ function Stream(inputs::Vector{ArrowBlob}; convert::Bool=true)
     names = Symbol[]
     types = Type[]
     schema = nothing
-    dictencodings = Dict{Int64, DictEncoding}()
-    dictencoded = Dict{Int64, Meta.Field}()
+    dictencodings = Dict{Int64,DictEncoding}()
+    dictencoded = Dict{Int64,Meta.Field}()
     compression = Ref{Union{Symbol,Nothing}}(nothing)
     Stream(inputs, inputindex, batchiterator, names, types, schema, dictencodings, dictencoded, convert, compression)
 end
@@ -91,8 +91,8 @@ Base.IteratorSize(::Type{Stream}) = Base.SizeUnknown()
 function BatchIterator(blob::ArrowBlob)
     bytes, pos, len = blob.bytes, blob.pos, blob.len
     if len > 24 &&
-        _startswith(bytes, pos, FILE_FORMAT_MAGIC_BYTES) &&
-        _endswith(bytes, pos + len - 1, FILE_FORMAT_MAGIC_BYTES)
+       _startswith(bytes, pos, FILE_FORMAT_MAGIC_BYTES) &&
+       _endswith(bytes, pos + len - 1, FILE_FORMAT_MAGIC_BYTES)
         pos += 8 # skip past magic bytes + padding
     end
     BatchIterator(bytes, pos)
@@ -159,7 +159,7 @@ function Base.iterate(x::Stream, (pos, id)=(1, 0))
             values, _, _ = build(field, field.type, batch, recordbatch, x.dictencodings, Int64(1), Int64(1), x.convert)
             A = ChainedVector([values])
             S = field.dictionary.indexType === nothing ? Int32 : juliaeltype(field, field.dictionary.indexType, false)
-            x.dictencodings[id] = DictEncoding{eltype(A), S, typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
+            x.dictencodings[id] = DictEncoding{eltype(A),S,typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
             @debugv 1 "parsed dictionary batch message: id=$id, data=$values\n"
         elseif header isa Meta.RecordBatch
             @debugv 1 "parsing record batch message: compression = $(header.compression)"
@@ -185,7 +185,7 @@ function Base.iterate(x::Stream, (pos, id)=(1, 0))
         end
     end
 
-    lookup = Dict{Symbol, AbstractVector}()
+    lookup = Dict{Symbol,AbstractVector}()
     types = Type[]
     for (nm, col) in zip(x.names, columns)
         lookup[nm] = col
@@ -222,12 +222,12 @@ struct Table <: Tables.AbstractColumns
     names::Vector{Symbol}
     types::Vector{Type}
     columns::Vector{AbstractVector}
-    lookup::Dict{Symbol, AbstractVector}
+    lookup::Dict{Symbol,AbstractVector}
     schema::Ref{Meta.Schema}
     metadata::Ref{Union{Nothing,Base.ImmutableDict{String,String}}}
 end
 
-Table() = Table(Symbol[], Type[], AbstractVector[], Dict{Symbol, AbstractVector}(), Ref{Meta.Schema}(), Ref{Union{Nothing,Base.ImmutableDict{String,String}}}(nothing))
+Table() = Table(Symbol[], Type[], AbstractVector[], Dict{Symbol,AbstractVector}(), Ref{Meta.Schema}(), Ref{Union{Nothing,Base.ImmutableDict{String,String}}}(nothing))
 
 function Table(names, types, columns, lookup, schema)
     m = isassigned(schema) ? buildmetadata(schema[]) : nothing
@@ -273,8 +273,8 @@ Table(inputs::Vector; kw...) = Table([ArrowBlob(tobytes(x), 1, nothing) for x in
 function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
     t = Table()
     sch = nothing
-    dictencodings = Dict{Int64, DictEncoding}() # dictionary id => DictEncoding
-    dictencoded = Dict{Int64, Meta.Field}() # dictionary id => field
+    dictencodings = Dict{Int64,DictEncoding}() # dictionary id => DictEncoding
+    dictencoded = Dict{Int64,Meta.Field}() # dictionary id => field
     sync = OrderedSynchronizer()
     tsks = Channel{Any}(Inf)
     tsk = Threads.@spawn begin
@@ -299,8 +299,8 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
     @sync for blob in blobs
         bytes, pos, len = blob.bytes, blob.pos, blob.len
         if len > 24 &&
-            _startswith(bytes, pos, FILE_FORMAT_MAGIC_BYTES) &&
-            _endswith(bytes, pos + len - 1, FILE_FORMAT_MAGIC_BYTES)
+           _startswith(bytes, pos, FILE_FORMAT_MAGIC_BYTES) &&
+           _endswith(bytes, pos + len - 1, FILE_FORMAT_MAGIC_BYTES)
             pos += 8 # skip past magic bytes + padding
         end
         for batch in BatchIterator(bytes, pos)
@@ -336,7 +336,7 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
                     else
                         A = ChainedVector([dictencoding.data, values])
                         S = field.dictionary.indexType === nothing ? Int32 : juliaeltype(field, field.dictionary.indexType, false)
-                        dictencodings[id] = DictEncoding{eltype(A), S, typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
+                        dictencodings[id] = DictEncoding{eltype(A),S,typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
                     end
                     continue
                 end
@@ -345,7 +345,7 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
                 values, _, _ = build(field, field.type, batch, recordbatch, dictencodings, Int64(1), Int64(1), convert)
                 A = values
                 S = field.dictionary.indexType === nothing ? Int32 : juliaeltype(field, field.dictionary.indexType, false)
-                dictencodings[id] = DictEncoding{eltype(A), S, typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
+                dictencodings[id] = DictEncoding{eltype(A),S,typeof(A)}(id, A, field.dictionary.isOrdered, values.metadata)
                 @debugv 1 "parsed dictionary batch message: id=$id, data=$values\n"
             elseif header isa Meta.RecordBatch
                 anyrecordbatches = true
@@ -422,7 +422,7 @@ function Base.iterate(x::BatchIterator, (pos, id)=(x.startpos, 0))
         @debugv 1 "not enough bytes left to read Meta.Message"
         return nothing
     end
-    msg = FlatBuffers.getrootas(Meta.Message, x.bytes, pos-1)
+    msg = FlatBuffers.getrootas(Meta.Message, x.bytes, pos - 1)
     pos += msglen
     # pos now points to message body
     @debugv 1 "parsing message: pos = $pos, msglen = $msglen, bodyLength = $(msg.bodyLength)"
@@ -436,7 +436,7 @@ end
 struct VectorIterator
     schema::Meta.Schema
     batch::Batch # batch.msg.header MUST BE RecordBatch
-    dictencodings::Dict{Int64, DictEncoding}
+    dictencodings::Dict{Int64,DictEncoding}
     convert::Bool
 end
 
@@ -457,8 +457,8 @@ end
 
 Base.length(x::VectorIterator) = length(x.schema.fields)
 
-const ListTypes = Union{Meta.Utf8, Meta.LargeUtf8, Meta.Binary, Meta.LargeBinary, Meta.List, Meta.LargeList}
-const LargeLists = Union{Meta.LargeUtf8, Meta.LargeBinary, Meta.LargeList}
+const ListTypes = Union{Meta.Utf8,Meta.LargeUtf8,Meta.Binary,Meta.LargeBinary,Meta.List,Meta.LargeList}
+const LargeLists = Union{Meta.LargeUtf8,Meta.LargeBinary,Meta.LargeList}
 
 function build(field::Meta.Field, batch, rb, de, nodeidx, bufferidx, convert)
     d = field.dictionary
@@ -500,7 +500,11 @@ function uncompress(ptr::Ptr{UInt8}, buffer, compression)
     ptr += 8 # skip past uncompressed length as Int64
     encodedbytes = unsafe_wrap(Array, ptr, buffer.length - 8)
     if compression.codec === Meta.CompressionTypes.LZ4_FRAME
-        decodedbytes = transcode(LZ4FrameDecompressor, encodedbytes)
+        @debug "Compression step: $len / thread: $(Threads.threadid())"
+        # decodedbytes = transcode(LZ4FrameDecompressor, encodedbytes, len)
+        # JS: change by providing length
+        decodedbytes = transcode(LZ4_FRAME_DECOMPRESSOR[Threads.threadid()], encodedbytes, len)
+
     elseif compression.codec === Meta.CompressionTypes.ZSTD
         decodedbytes = transcode(ZstdDecompressor, encodedbytes)
     else
@@ -557,10 +561,10 @@ function build(f::Meta.Field, L::ListTypes, batch, rb, de, nodeidx, bufferidx, c
     end
     meta = buildmetadata(f.custom_metadata)
     T = juliaeltype(f, meta, convert)
-    return List{T, OT, typeof(A)}(bytes, validity, offsets, A, len, meta), nodeidx, bufferidx
+    return List{T,OT,typeof(A)}(bytes, validity, offsets, A, len, meta), nodeidx, bufferidx
 end
 
-function build(f::Meta.Field, L::Union{Meta.FixedSizeBinary, Meta.FixedSizeList}, batch, rb, de, nodeidx, bufferidx, convert)
+function build(f::Meta.Field, L::Union{Meta.FixedSizeBinary,Meta.FixedSizeList}, batch, rb, de, nodeidx, bufferidx, convert)
     @debugv 2 "building array: L = $L"
     validity = buildbitmap(batch, rb, nodeidx, bufferidx)
     bufferidx += 1
@@ -576,7 +580,7 @@ function build(f::Meta.Field, L::Union{Meta.FixedSizeBinary, Meta.FixedSizeList}
     end
     meta = buildmetadata(f.custom_metadata)
     T = juliaeltype(f, meta, convert)
-    return FixedSizeList{T, typeof(A)}(bytes, validity, A, len, meta), nodeidx, bufferidx
+    return FixedSizeList{T,typeof(A)}(bytes, validity, A, len, meta), nodeidx, bufferidx
 end
 
 function build(f::Meta.Field, L::Meta.Map, batch, rb, de, nodeidx, bufferidx, convert)
@@ -594,7 +598,7 @@ function build(f::Meta.Field, L::Meta.Map, batch, rb, de, nodeidx, bufferidx, co
     A, nodeidx, bufferidx = build(f.children[1], batch, rb, de, nodeidx, bufferidx, convert)
     meta = buildmetadata(f.custom_metadata)
     T = juliaeltype(f, meta, convert)
-    return Map{T, OT, typeof(A)}(validity, offsets, A, len, meta), nodeidx, bufferidx
+    return Map{T,OT,typeof(A)}(validity, offsets, A, len, meta), nodeidx, bufferidx
 end
 
 function build(f::Meta.Field, L::Meta.Struct, batch, rb, de, nodeidx, bufferidx, convert)
@@ -611,7 +615,7 @@ function build(f::Meta.Field, L::Meta.Struct, batch, rb, de, nodeidx, bufferidx,
     data = Tuple(vecs)
     meta = buildmetadata(f.custom_metadata)
     T = juliaeltype(f, meta, convert)
-    return Struct{T, typeof(data)}(validity, data, len, meta), nodeidx, bufferidx
+    return Struct{T,typeof(data)}(validity, data, len, meta), nodeidx, bufferidx
 end
 
 function build(f::Meta.Field, L::Meta.Union, batch, rb, de, nodeidx, bufferidx, convert)
@@ -635,9 +639,9 @@ function build(f::Meta.Field, L::Meta.Union, batch, rb, de, nodeidx, bufferidx, 
     T = juliaeltype(f, meta, convert)
     UT = UnionT(f, convert)
     if L.mode == Meta.UnionModes.Dense
-        B = DenseUnion{T, UT, typeof(data)}(bytes, bytes2, typeIds, offsets, data, meta)
+        B = DenseUnion{T,UT,typeof(data)}(bytes, bytes2, typeIds, offsets, data, meta)
     else
-        B = SparseUnion{T, UT, typeof(data)}(bytes, typeIds, data, meta)
+        B = SparseUnion{T,UT,typeof(data)}(bytes, typeIds, data, meta)
     end
     return B, nodeidx, bufferidx
 end

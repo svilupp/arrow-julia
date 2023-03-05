@@ -60,7 +60,8 @@ include("FlatBuffers/FlatBuffers.jl")
 using .FlatBuffers
 
 include("metadata/Flatbuf.jl")
-using .Flatbuf; const Meta = Flatbuf
+using .Flatbuf
+const Meta = Flatbuf
 
 using ArrowTypes
 include("utils.jl")
@@ -74,16 +75,21 @@ include("show.jl")
 const LZ4_FRAME_COMPRESSOR = LZ4FrameCompressor[]
 const ZSTD_COMPRESSOR = ZstdCompressor[]
 
+const LZ4_FRAME_DECOMPRESSOR = LZ4FrameDecompressor[]
+
 function __init__()
-    for _ = 1:Threads.nthreads()
-        zstd = ZstdCompressor(; level=3)
-        CodecZstd.TranscodingStreams.initialize(zstd)
-        push!(ZSTD_COMPRESSOR, zstd)
-        lz4 = LZ4FrameCompressor(; compressionlevel=4)
-        CodecLz4.TranscodingStreams.initialize(lz4)
-        push!(LZ4_FRAME_COMPRESSOR, lz4)
-    end
-    return
+  for _ = 1:Threads.nthreads()
+    zstd = ZstdCompressor(; level=3)
+    CodecZstd.TranscodingStreams.initialize(zstd)
+    push!(ZSTD_COMPRESSOR, zstd)
+    lz4 = LZ4FrameCompressor(; compressionlevel=4)
+    CodecLz4.TranscodingStreams.initialize(lz4)
+    push!(LZ4_FRAME_COMPRESSOR, lz4)
+    lz4d = LZ4FrameDecompressor()
+    CodecLz4.TranscodingStreams.initialize(lz4d)
+    push!(LZ4_FRAME_DECOMPRESSOR, lz4d)
+  end
+  return
 end
 
 end  # module Arrow
