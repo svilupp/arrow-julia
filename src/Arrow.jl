@@ -76,6 +76,7 @@ const LZ4_FRAME_COMPRESSOR = LZ4FrameCompressor[]
 const ZSTD_COMPRESSOR = ZstdCompressor[]
 
 const LZ4_FRAME_DECOMPRESSOR = LZ4FrameDecompressor[]
+const ZSTD_DECOMPRESSOR = ZstdDecompressor[]
 
 function __init__()
   for _ = 1:Threads.nthreads()
@@ -85,6 +86,9 @@ function __init__()
     lz4 = LZ4FrameCompressor(; compressionlevel=4)
     CodecLz4.TranscodingStreams.initialize(lz4)
     push!(LZ4_FRAME_COMPRESSOR, lz4)
+    zstdd = ZstdDecompressor()
+    CodecZstd.TranscodingStreams.initialize(zstdd)
+    push!(ZSTD_DECOMPRESSOR, zstdd)
     lz4d = LZ4FrameDecompressor()
     CodecLz4.TranscodingStreams.initialize(lz4d)
     push!(LZ4_FRAME_DECOMPRESSOR, lz4d)

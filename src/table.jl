@@ -280,6 +280,7 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
     tsk = Threads.@spawn begin
         i = 1
         for cols in tsks
+            @debug "UpperTask: i=$i, length(cols)=$(length(cols))"
             if i == 1
                 foreach(x -> push!(columns(t), x), cols)
             elseif i == 2
@@ -296,7 +297,9 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
     end
     anyrecordbatches = false
     rbi = 1
+    @debug "BlobSync: $(length(blobs)) blobs"
     @sync for blob in blobs
+        @debug "BlobSync: Starting blob"
         bytes, pos, len = blob.bytes, blob.pos, blob.len
         if len > 24 &&
            _startswith(bytes, pos, FILE_FORMAT_MAGIC_BYTES) &&
@@ -304,6 +307,8 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
             pos += 8 # skip past magic bytes + padding
         end
         for batch in BatchIterator(bytes, pos)
+            # @info "I'm a batch"
+            @debug "BlobSync: BatchIterator: pos=$(batch.pos), id=$(batch.id), rbi=$rbi"
             # store custom_metadata of batch.msg?
             header = batch.msg.header
             if header isa Meta.Schema
@@ -351,6 +356,7 @@ function Table(blobs::Vector{ArrowBlob}; convert::Bool=true)
                 anyrecordbatches = true
                 @debugv 1 "parsing record batch message: compression = $(header.compression)"
                 Threads.@spawn begin
+                    @debug "SpawnedTask: threadid=$(Threads.threadid()), rbi=$rbi"
                     cols = collect(VectorIterator(sch, $batch, dictencodings, convert))
                     put!(() -> put!(tsks, cols), sync, $(rbi))
                 end
@@ -451,7 +457,7 @@ function Base.iterate(x::VectorIterator, (columnidx, nodeidx, bufferidx)=(Int64(
     @debugv 2 "building top-level column: field = $(field), columnidx = $columnidx, nodeidx = $nodeidx, bufferidx = $bufferidx"
     A, nodeidx, bufferidx = build(field, x.batch, x.batch.msg.header, x.dictencodings, nodeidx, bufferidx, x.convert)
     @debugv 2 "built top-level column: A = $(typeof(A)), columnidx = $columnidx, nodeidx = $nodeidx, bufferidx = $bufferidx"
-    @debugv 3 A
+    # @debugv 3 A
     return A, (columnidx + 1, nodeidx, bufferidx)
 end
 
@@ -500,13 +506,13 @@ function uncompress(ptr::Ptr{UInt8}, buffer, compression)
     ptr += 8 # skip past uncompressed length as Int64
     encodedbytes = unsafe_wrap(Array, ptr, buffer.length - 8)
     if compression.codec === Meta.CompressionTypes.LZ4_FRAME
-        @debug "Compression step: $len / thread: $(Threads.threadid())"
         # decodedbytes = transcode(LZ4FrameDecompressor, encodedbytes, len)
-        # JS: change by providing length
+        # change by providing length
         decodedbytes = transcode(LZ4_FRAME_DECOMPRESSOR[Threads.threadid()], encodedbytes, len)
 
     elseif compression.codec === Meta.CompressionTypes.ZSTD
-        decodedbytes = transcode(ZstdDecompressor, encodedbytes)
+        # decodedbytes = transcode(ZstdDecompressor, encodedbytes)
+        decodedbytes = transcode(ZSTD_DECOMPRESSOR[Threads.threadid()], encodedbytes, len)
     else
         error("unsupported compression type when reading arrow buffers: $(typeof(compression.codec))")
     end

@@ -293,6 +293,7 @@ function write(io, source, writetofile, largelists, compress, denseunions, dicte
 end
 
 function process_partition(cols, dictencodings, largelists, compress, denseunions, dictencode, dictencodenested, maxdepth, sync, msgs, alignment, i, sch, errorref, anyerror, meta, colmeta)
+    # @info "Write: using threads: Threadid=$(Threads.threadid()) - Partition: $(i))"
     try
         cols = toarrowtable(cols, dictencodings, largelists, compress, denseunions, dictencode, dictencodenested, maxdepth, meta, colmeta)
         dictmsgs = nothing
